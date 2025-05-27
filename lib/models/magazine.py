@@ -1,87 +1,119 @@
 from lib.db.connection import get_connection
-from contextlib import closing 
 
 class Magazine:
-    def __init__(self, name, category, id=None):
-        if not name or not isinstance(name, str):
-            raise ValueError("Name must be a non-empty string.")
-        if not category or not isinstance(category, str):
-            raise ValueError("Category must be a non-empty string.")
+    def __init__(self, id=None, name=None, category=None):
         self.id = id
         self.name = name
         self.category = category
 
     def save(self):
-        with closing(get_connection()) as conn:
-            cursor = conn.cursor()
+        """
+        Insert or update a Magazine in the database.
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+        if self.id is None:
             cursor.execute(
                 "INSERT INTO magazines (name, category) VALUES (?, ?)",
                 (self.name, self.category)
             )
-            conn.commit()
             self.id = cursor.lastrowid
+        else:
+            cursor.execute(
+                "UPDATE magazines SET name = ?, category = ? WHERE id = ?",
+                (self.name, self.category, self.id)
+            )
+        conn.commit()
+        conn.close()
 
     @classmethod
-    def find_by_id(cls, id):
-        with closing(get_connection()) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM magazines WHERE id = ?", (id,))
-            row = cursor.fetchone()
-            return cls(row["name"], row["category"], row["id"]) if row else None
+    def find_by_id(cls, mag_id):
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM magazines WHERE id = ?", (mag_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return cls(id=row["id"], name=row["name"], category=row["category"])
+        return None
 
     @classmethod
     def find_by_name(cls, name):
-        with closing(get_connection()) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM magazines WHERE name = ?", (name,))
-            row = cursor.fetchone()
-            return cls(row["name"], row["category"], row["id"]) if row else None
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM magazines WHERE name = ?", (name,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return cls(id=row["id"], name=row["name"], category=row["category"])
+        return None
 
     @classmethod
     def find_by_category(cls, category):
-        with closing(get_connection()) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM magazines WHERE category = ?", (category,))
-            rows = cursor.fetchall()
-            return [cls(row["name"], row["category"], row["id"]) for row in rows]
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM magazines WHERE category = ?", (category,))
+        rows = cursor.fetchall()
+        conn.close()
+        return [cls(id=row["id"], name=row["name"], category=row["category"]) for row in rows]
 
     def articles(self):
-        with closing(get_connection()) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM articles WHERE magazine_id = ?", (self.id,))
-            return cursor.fetchall()
+        """
+        Return all Article instances published in this magazine.
+        """
+        from lib.models.article import Article  # avoid circular imports
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM articles WHERE magazine_id = ?", (self.id,))
+        rows = cursor.fetchall()
+        conn.close()
+        return [Article(id=row["id"], title=row["title"], author_id=row["author_id"], magazine_id=row["magazine_id"]) for row in rows]
 
     def contributors(self):
-        with closing(get_connection()) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT DISTINCT a.* FROM authors a
-                JOIN articles ar ON ar.author_id = a.id
-                WHERE ar.magazine_id = ?
-            """, (self.id,))
-            return cursor.fetchall()
+        """
+        Return unique Author instances who have written for this magazine.
+        """
+        from lib.models.author import Author  # avoid circular imports
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT DISTINCT au.* FROM authors au
+            JOIN articles a ON au.id = a.author_id
+            WHERE a.magazine_id = ?
+        """, (self.id,))
+        rows = cursor.fetchall()
+        conn.close()
+        return [Author(id=row["id"], name=row["name"]) for row in rows]
 
     def article_titles(self):
-        with closing(get_connection()) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT title FROM articles
-                WHERE magazine_id = ?
-            """, (self.id,))
-            rows = cursor.fetchall()
-            return [row["title"] for row in rows]
+        """
+        Return titles of all articles in this magazine.
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT title FROM articles WHERE magazine_id = ?", (self.id,))
+        titles = [row["title"] for row in cursor.fetchall()]
+        conn.close()
+        return titles
 
     def contributing_authors(self):
-        with closing (get_connection()) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT a.*, COUNT(ar.id) as article_count FROM authors a
-                JOIN articles ar ON ar.author_id = a.id
-                WHERE ar.magazine_id = ?
-                GROUP BY a.id
-                HAVING article_count > 2
-            """, (self.id,))
-            return cursor.fetchall()
+        """
+        Return list of tuples (Author instance, article_count) with authors
+        who have written more than 2 articles in this magazine.
+        """
+        from lib.models.author import Author  # avoid circular imports
 
-    def __repr__(self):
-        return f"<Magazine id={self.id} name='{self.name}' category='{self.category}'>"
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT au.*, COUNT(a.id) as article_count FROM authors au
+            JOIN articles a ON au.id = a.author_id
+            WHERE a.magazine_id = ?
+            GROUP BY au.id
+            HAVING COUNT(a.id) > 2
+        """, (self.id,))
+        rows = cursor.fetchall()
+        conn.close()
+        return [(Author(id=row["id"], name=row["name"]), row["article_count"]) for row in rows]

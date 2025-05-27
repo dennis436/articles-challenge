@@ -1,19 +1,28 @@
+-- lib/db/schema.sql
+
 CREATE TABLE IF NOT EXISTS authors (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL
+    name VARCHAR(255) NOT NULL UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS magazines (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    category TEXT NOT NULL
+    name VARCHAR(255) NOT NULL,
+    category VARCHAR(255) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS articles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
+    title VARCHAR(255) NOT NULL,
     author_id INTEGER NOT NULL,
     magazine_id INTEGER NOT NULL,
     FOREIGN KEY (author_id) REFERENCES authors(id),
     FOREIGN KEY (magazine_id) REFERENCES magazines(id)
+);
+
+DROP TABLE IF EXISTS authors;
+
+CREATE TABLE authors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
 );

@@ -5,7 +5,7 @@ import sys
 DB_FILE = 'articles.db'
 
 def get_connection():
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect("lib/db/database.db")
     conn.row_factory = sqlite3.Row
     return conn
 

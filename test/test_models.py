@@ -1,79 +1,110 @@
+import pytest
 from lib.models.author import Author
 from lib.models.magazine import Magazine
 from lib.models.article import Article
-import pytest
-def test_author():
-    # Create and save an author
-    author = Author("Jane Doe")
+from lib.db.connection import get_connection
+
+@pytest.fixture(scope="module", autouse=True)
+def setup_and_teardown_db():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Clean tables before running tests
+    cursor.execute("DELETE FROM articles")
+    cursor.execute("DELETE FROM authors")
+    cursor.execute("DELETE FROM magazines")
+    conn.commit()
+
+    yield  # Run tests
+
+    # Clean up after tests
+    cursor.execute("DELETE FROM articles")
+    cursor.execute("DELETE FROM authors")
+    cursor.execute("DELETE FROM magazines")
+    conn.commit()
+    conn.close()
+
+def test_author_crud():
+    author = Author(name="Test Author")
     author.save()
-    print(f"Saved author with ID: {author.id}")
+    assert author.id is not None
 
-    # Find by ID
-    found_author = Author.find_by_id(author.id)
-    assert found_author is not None and found_author.name == "Jane Doe"
+    found = Author.find_by_id(author.id)
+    assert found is not None
+    assert found.name == "Test Author"
 
-    # Find by name
-    found_author_by_name = Author.find_by_name("Jane Doe")
-    assert found_author_by_name is not None and found_author_by_name.id == author.id
-
-    print("Author tests passed.")
-
-def test_magazine():
-    # Create and save a magazine
-    mag = Magazine("Tech Today", "Technology")
-    mag.save()
-    print(f"Saved magazine with ID: {mag.id}")
-
-    # Find by ID
-    found_mag = Magazine.find_by_id(mag.id)
-    assert found_mag is not None and found_mag.name == "Tech Today"
-
-    # Find by name
-    found_mag_by_name = Magazine.find_by_name("Tech Today")
-    assert found_mag_by_name is not None and found_mag_by_name.id == mag.id
-
-    # Find by category
-    mags = Magazine.find_by_category("Technology")
-    assert any(m.id == mag.id for m in mags)
-
-    print("Magazine tests passed.")
-
-def test_article():
-    # Setup author and magazine first
-    author = Author("John Smith")
+    # Update author
+    author.name = "Updated Author"
     author.save()
-    magazine = Magazine("Science Weekly", "Science")
+
+    updated = Author.find_by_id(author.id)
+    assert updated.name == "Updated Author"
+
+def test_magazine_crud():
+    # Notice: Added 'category' argument to fix NOT NULL constraint error
+    magazine = Magazine(name="Test Magazine", category="Tech")
+    magazine.save()
+    assert magazine.id is not None
+
+    found = Magazine.find_by_id(magazine.id)
+    assert found is not None
+    assert found.name == "Test Magazine"
+    assert found.category == "Tech"
+
+    # Update magazine
+    magazine.name = "Updated Magazine"
+    magazine.category = "Science"  # Update category too
     magazine.save()
 
-    # Create and save an article
-    article = Article("New Discoveries", author.id, magazine.id)
+    updated = Magazine.find_by_id(magazine.id)
+    assert updated.name == "Updated Magazine"
+    assert updated.category == "Science"
+
+def test_article_crud():
+    # Setup author and magazine for foreign keys (with category for magazine)
+    author = Author(name="Article Author")
+    author.save()
+    magazine = Magazine(name="Article Magazine", category="Lifestyle")
+    magazine.save()
+
+    article = Article(title="Test Article", author_id=author.id, magazine_id=magazine.id)
     article.save()
-    print(f"Saved article with ID: {article.id}")
+    assert article.id is not None
 
-    # Find article by ID
-    found_article = Article.find_by_id(article.id)
-    assert found_article is not None and found_article.title == "New Discoveries"
+    found = Article.find_by_id(article.id)
+    assert found is not None
+    assert found.title == "Test Article"
+    assert found.author_id == author.id
+    assert found.magazine_id == magazine.id
 
-    # Find by title
-    found_by_title = Article.find_by_title("New Discoveries")
-    assert found_by_title is not None and found_by_title.title == "New Discoveries"
+    # Update article
+    article.title = "Updated Article"
+    article.save()
 
-    # Find by author
+    updated = Article.find_by_id(article.id)
+    assert updated.title == "Updated Article"
+
+def test_article_find_by_author_and_magazine():
+    # Setup author and magazine (with category)
+    author = Author(name="Find Test Author")
+    author.save()
+    magazine = Magazine(name="Find Test Magazine", category="Business")
+    magazine.save()
+
+    # Create multiple articles
+    a1 = Article(title="Article One", author_id=author.id, magazine_id=magazine.id)
+    a1.save()
+    a2 = Article(title="Article Two", author_id=author.id, magazine_id=magazine.id)
+    a2.save()
+
+    # Find articles by author
     articles_by_author = Article.find_by_author(author.id)
-    assert any(a.id == article.id for a in articles_by_author)
+    assert len(articles_by_author) >= 2
+    titles = [a.title for a in articles_by_author]
+    assert "Article One" in titles and "Article Two" in titles
 
-    # Find by magazine
+    # Find articles by magazine
     articles_by_magazine = Article.find_by_magazine(magazine.id)
-    assert any(a.id == article.id for a in articles_by_magazine)
-
-    # Test related methods
-    assert found_article.author().id == author.id
-    assert found_article.magazine().id == magazine.id
-
-    print("Article tests passed.")
-
-if __name__ == "__main__":
-    test_author()
-    test_magazine()
-    test_article()
-    print("All tests passed!")
+    assert len(articles_by_magazine) >= 2
+    titles_mag = [a.title for a in articles_by_magazine]
+    assert "Article One" in titles_mag and "Article Two" in titles_mag

@@ -1,29 +1,43 @@
 from lib.models.author import Author
 from lib.models.magazine import Magazine
-from lib.models.article import Article
 
-# Create authors
-a1 = Author("Dennis Muchiri")
-a1.save()
+def seed_data():
+    # Clear existing data if needed (optional, depending on your setup)
+    
+    # Create authors
+    author1 = Author(name="Alice Smith")
+    author1.save()
 
-a2 = Author("Jane Doe")
-a2.save()
+    author2 = Author(name="Bob Johnson")
+    author2.save()
 
-# Create magazines
-m1 = Magazine("Tech Monthly", "Technology")
-m1.save()
+    author3 = Author(name="Carol Williams")
+    author3.save()
 
-m2 = Magazine("Health Weekly", "Health")
-m2.save()
+    # Create magazines
+    mag1 = Magazine(name="Tech Today", category="Technology")
+    mag1.save()
 
-# Create articles
-art1 = Article("AI in 2025", a1.id, m1.id)
-art1.save()
+    mag2 = Magazine(name="Health Weekly", category="Health")
+    mag2.save()
 
-art2 = Article("Wellness Hacks", a2.id, m2.id)
-art2.save()
+    mag3 = Magazine(name="Travel World", category="Travel")
+    mag3.save()
 
-art3 = Article("Tech for All", a1.id, m1.id)
-art3.save()
+    # Add articles by authors to magazines
+    author1.add_article(mag1, "The Future of AI")
+    author1.add_article(mag2, "Healthy Eating Habits")
+    author1.add_article(mag1, "Advancements in Robotics")
 
-print("✅ Seed data inserted successfully.")
+    author2.add_article(mag3, "Top 10 Travel Destinations")
+    author2.add_article(mag3, "Budget Travel Tips")
+    author2.add_article(mag3, "Travel Safety Guidelines")
+    author2.add_article(mag1, "Cybersecurity Essentials")
+
+    author3.add_article(mag2, "Mental Health Awareness")
+    author3.add_article(mag2, "Yoga and Wellness")
+
+    print("Seed data created.")
+
+if __name__ == "__main__":
+    seed_data()
